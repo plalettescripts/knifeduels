@@ -1,9 +1,10 @@
 -- ============================================================
---  Plalette Scripts · Knife Duels · Silent Aim PRO
---  Silent Aim nur beim Wurf aktiv – kein FPS-Verlust
---  Inkl. Passwort-UI, Config, FPS Boost, ESP
+--  Plalette Scripts · Knife Duels · PRO (Speed+Jump FIXED)
+--  Silent Aim + Chams + Tracers + 1v1 + Speed + JumpPower
+--  Language: English
 -- ============================================================
 
+-- ========== PASSWORD UI (gekürzt – du kennst es) ==========
 local PassScreen = Instance.new("ScreenGui")
 PassScreen.Parent = game:GetService("CoreGui")
 
@@ -51,7 +52,7 @@ PI.Size = UDim2.new(1, -40, 0, 28)
 PI.Position = UDim2.new(0, 20, 0, 70)
 PI.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
 PI.TextColor3 = Color3.fromRGB(255, 255, 255)
-PI.PlaceholderText = "Passwort..."
+PI.PlaceholderText = "Password..."
 PI.Text = ""
 PI.Font = Enum.Font.SourceSans
 PI.TextSize = 14
@@ -63,7 +64,7 @@ PB.Size = UDim2.new(1, -40, 0, 26)
 PB.Position = UDim2.new(0, 20, 0, 105)
 PB.BackgroundColor3 = Color3.fromRGB(140, 80, 255)
 PB.TextColor3 = Color3.fromRGB(255, 255, 255)
-PB.Text = "Freischalten"
+PB.Text = "Unlock"
 PB.Font = Enum.Font.SourceSansBold
 PB.TextSize = 14
 PB.Parent = PassFrame
@@ -110,59 +111,102 @@ end)
 local function Try()
     if PI.Text == "plalettescripts3754356" then
         PassScreen:Destroy()
-        LoadRayfield()
+        LoadScript()
     else
         PI.Text = ""
-        PI.PlaceholderText = "Falsch!"
+        PI.PlaceholderText = "Wrong!"
         task.wait(0.8)
-        PI.PlaceholderText = "Passwort..."
+        PI.PlaceholderText = "Password..."
     end
 end
 PB.MouseButton1Click:Connect(Try)
 PI.FocusLost:Connect(function(ep) if ep then Try() end end)
 
-function LoadRayfield()
+-- ========== MAIN SCRIPT ==========
+function LoadScript()
     local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
     local Players = game:GetService("Players")
-    local RunService = game:GetService("RunService")
-    local UserInputService = game:GetService("UserInputService")
     local Workspace = game:GetService("Workspace")
     local Lighting = game:GetService("Lighting")
+    local UserInputService = game:GetService("UserInputService")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local RunService = game:GetService("RunService")
     local LocalPlayer = Players.LocalPlayer
     local Camera = Workspace.CurrentCamera
 
-    -- ========== FEATURES ==========
-    local SilentAimEnabled = false
-    local FOVRadius = 120
-    local HitPart = "Head"
-    local ESPOn = false
-    local FPSBoostOn = false
-    local FullbrightOn = false
+    -- ===== CONFIG =====
+    local Config = {
+        Enabled = true,
+        HitPart = "Head",
+        FOV = 450,
+        Chams = false,
+        Tracers = false,
+        Speed = false,
+        SpeedVal = 32,
+        Jump = false,
+        JumpVal = 60,
+        FPSBoost = false,
+        Fullbright = false,
+    }
 
+    -- ===== FOV CIRCLE + CROSSHAIR =====
     local FOVCircle = Drawing.new("Circle")
     FOVCircle.Filled = false
+    FOVCircle.Thickness = 1.5
+    FOVCircle.Color = Color3.fromRGB(140, 80, 255)
     FOVCircle.Visible = false
-    local ESPDrawings = {}
 
-    -- ========== GET NEAREST PLAYER IN FOV ==========
+    local CrosshairH = Drawing.new("Line")
+    CrosshairH.Color = Color3.fromRGB(255, 255, 255)
+    CrosshairH.Thickness = 1
+    CrosshairH.Visible = false
+
+    local CrosshairV = Drawing.new("Line")
+    CrosshairV.Color = Color3.fromRGB(255, 255, 255)
+    CrosshairV.Thickness = 1
+    CrosshairV.Visible = false
+
+    task.spawn(function()
+        while task.wait(0.03) do
+            local center = Camera.ViewportSize / 2
+            if Config.Enabled then
+                FOVCircle.Visible = true
+                FOVCircle.Radius = Config.FOV
+                FOVCircle.Position = center
+
+                CrosshairH.Visible = true
+                CrosshairH.From = Vector2.new(center.X - 10, center.Y)
+                CrosshairH.To = Vector2.new(center.X + 10, center.Y)
+
+                CrosshairV.Visible = true
+                CrosshairV.From = Vector2.new(center.X, center.Y - 10)
+                CrosshairV.To = Vector2.new(center.X, center.Y + 10)
+            else
+                FOVCircle.Visible = false
+                CrosshairH.Visible = false
+                CrosshairV.Visible = false
+            end
+        end
+    end)
+
+    -- ===== SILENT AIM (YOUR WORKING CODE) =====
+    local KnifeController = require(LocalPlayer.PlayerScripts:WaitForChild("Controllers"):WaitForChild("Combat"):WaitForChild("KnifeController"))
+
     local function GetNearestPlayer()
         local nearest = nil
-        local shortestDist = FOVRadius
-        local centerX = Camera.ViewportSize.X / 2
-        local centerY = Camera.ViewportSize.Y / 2
+        local shortestDist = Config.FOV
+        local center = Camera.ViewportSize / 2
 
         for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                local targetPart = player.Character:FindFirstChild(HitPart) or player.Character:FindFirstChild("HumanoidRootPart")
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+                local targetPart = player.Character:FindFirstChild(Config.HitPart)
                 if targetPart then
                     local pos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
                     if onScreen then
-                        local dx = pos.X - centerX
-                        local dy = pos.Y - centerY
-                        local dist = math.sqrt(dx*dx + dy*dy)
+                        local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
                         if dist < shortestDist then
-                            shortestDist = dist
                             nearest = player
+                            shortestDist = dist
                         end
                     end
                 end
@@ -171,91 +215,170 @@ function LoadRayfield()
         return nearest
     end
 
-    -- ========== SILENT AIM ==========
-    local function OnThrow()
-        if not SilentAimEnabled then return end
-        local target = GetNearestPlayer()
-        if not target or not target.Character then return end
-        local targetPart = target.Character:FindFirstChild(HitPart) or target.Character:FindFirstChild("HumanoidRootPart")
-        if not targetPart then return end
-        Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+    local originalGetThrowDirection = KnifeController._GetThrowDirection
+    KnifeController._GetThrowDirection = function(self, character)
+        if Config.Enabled then
+            local target = GetNearestPlayer()
+            if target and target.Character then
+                local targetPart = target.Character:FindFirstChild(Config.HitPart)
+                if targetPart then
+                    return (targetPart.Position - character.Position).Unit
+                end
+            end
+        end
+        return originalGetThrowDirection(self, character)
     end
 
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            task.wait(0.05)
-            OnThrow()
+    -- ===== SPEED + JUMP (HART IN DEN HUMANOID GESCHRIEBEN) =====
+    local function ApplySpeedJump()
+        if not LocalPlayer.Character then return end
+        local h = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if h then
+            if Config.Speed then
+                h.WalkSpeed = Config.SpeedVal
+            end
+            if Config.Jump then
+                h.JumpPower = Config.JumpVal
+            end
         end
-        if input.KeyCode == Enum.KeyCode.Q or input.KeyCode == Enum.KeyCode.R then
-            task.wait(0.05)
-            OnThrow()
-        end
+    end
+
+    -- Bei jedem neuen Character anwenden
+    LocalPlayer.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        ApplySpeedJump()
     end)
 
-    -- ========== FOV CIRCLE ==========
-    task.spawn(function()
-        while task.wait(0.1) do
-            if SilentAimEnabled then
-                FOVCircle.Visible = true
-                FOVCircle.Radius = FOVRadius
-                FOVCircle.Thickness = 1.5
-                FOVCircle.Color = Color3.fromRGB(140, 80, 255)
-                FOVCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-            else
-                FOVCircle.Visible = false
+    -- Dauerhaft prüfen (überschreibt andere Skripte)
+    RunService.Stepped:Connect(function()
+        if LocalPlayer.Character then
+            local h = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if h then
+                if Config.Speed and h.WalkSpeed ~= Config.SpeedVal then
+                    h.WalkSpeed = Config.SpeedVal
+                end
+                if Config.Jump and h.JumpPower ~= Config.JumpVal then
+                    h.JumpPower = Config.JumpVal
+                end
             end
         end
     end)
 
-    -- ========== ESP ==========
-    local function ClearESP()
-        for _, d in pairs(ESPDrawings) do pcall(function() d:Remove() end) end
-        ESPDrawings = {}
+    -- ===== CHAMS (green on free throw) =====
+    local function IsThrowFree(targetPart)
+        if not targetPart then return false end
+        local origin = Camera.CFrame.Position
+        local direction = (targetPart.Position - origin).Unit
+        local ray = Ray.new(origin, direction * 200)
+        local hit = Workspace:FindPartOnRay(ray, LocalPlayer.Character)
+        if hit then
+            local distToTarget = (targetPart.Position - origin).Magnitude
+            local distToHit = (hit.Position - origin).Magnitude
+            if distToHit < distToTarget - 1 then
+                return false
+            end
+        end
+        return true
     end
 
     task.spawn(function()
-        while task.wait(0.06) do
-            ClearESP()
-            if ESPOn then
+        while task.wait(0.1) do
+            if Config.Chams then
                 for _, player in ipairs(Players:GetPlayers()) do
                     if player ~= LocalPlayer and player.Character then
-                        local head = player.Character:FindFirstChild("Head")
-                        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-                        if head and hrp then
-                            local pos, on = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
-                            if on then
-                                local fp = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
-                                local height = math.abs(pos.Y - fp.Y)
-                                local width = height / 2
-                                local box = Drawing.new("Square")
-                                box.Color = Color3.fromRGB(140, 80, 255)
-                                box.Thickness = 1
-                                box.Size = Vector2.new(width, height)
-                                box.Position = Vector2.new(pos.X - width/2, pos.Y)
-                                box.Filled = false
-                                box.Visible = true
-                                table.insert(ESPDrawings, box)
-                                local name = Drawing.new("Text")
-                                name.Text = player.Name
-                                name.Color = Color3.fromRGB(255, 255, 255)
-                                name.Size = 11
-                                name.Position = Vector2.new(pos.X, pos.Y - 14)
-                                name.Center = true
-                                name.Visible = true
-                                table.insert(ESPDrawings, name)
-                            end
+                        local hl = player.Character:FindFirstChild("ChamsHL")
+                        if not hl then
+                            hl = Instance.new("Highlight")
+                            hl.Name = "ChamsHL"
+                            hl.FillTransparency = 0.6
+                            hl.OutlineTransparency = 0.3
+                            hl.Parent = player.Character
                         end
+                        local targetPart = player.Character:FindFirstChild(Config.HitPart)
+                        if IsThrowFree(targetPart) then
+                            hl.OutlineColor = Color3.fromRGB(0, 255, 0)
+                        else
+                            hl.OutlineColor = Color3.fromRGB(255, 0, 0)
+                        end
+                    end
+                end
+            else
+                for _, player in ipairs(Players:GetPlayers()) do
+                    if player.Character then
+                        local hl = player.Character:FindFirstChild("ChamsHL")
+                        if hl then hl:Destroy() end
                     end
                 end
             end
         end
     end)
 
-    -- ========== FPS BOOST ==========
+    -- ===== TRACERS (SMOOTH) =====
+    local Tracers = {}
+    local function ClearTracers()
+        for _, d in pairs(Tracers) do pcall(function() d:Remove() end) end
+        Tracers = {}
+    end
+
+    local tracerUpdate = 0
+    RunService.RenderStepped:Connect(function()
+        tracerUpdate = tracerUpdate + 1
+        if tracerUpdate < 2 then return end
+        tracerUpdate = 0
+        ClearTracers()
+        if not Config.Tracers then return end
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local pos, on = Camera:WorldToViewportPoint(hrp.Position)
+                    if on then
+                        local tracer = Drawing.new("Line")
+                        tracer.Color = Color3.fromRGB(180, 130, 255)
+                        tracer.Thickness = 0.8
+                        tracer.From = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y)
+                        tracer.To = Vector2.new(pos.X, pos.Y)
+                        tracer.Visible = true
+                        table.insert(Tracers, tracer)
+                    end
+                end
+            end
+        end
+    end)
+
+    -- ===== 1v1 REQUEST ALL (AUTO-DETECT + FALLBACK) =====
+    local function RequestAll()
+        local remote = nil
+        for _, v in ipairs(game:GetDescendants()) do
+            if v:IsA("RemoteEvent") and (v.Name:lower():find("duel") or v.Name:lower():find("request") or v.Name:lower():find("1v1") or v.Name:lower():find("challenge") or v.Name:lower():find("invite")) then
+                remote = v
+                break
+            end
+        end
+
+        if not remote then
+            pcall(function()
+                game:GetService("Chat"):Chat(LocalPlayer.Character, "/duelall")
+            end)
+            return 0
+        end
+
+        local count = 0
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                pcall(function()
+                    remote:FireServer(player)
+                    count = count + 1
+                end)
+            end
+        end
+        return count
+    end
+
+    -- ===== FPS BOOST =====
     task.spawn(function()
         while task.wait(1) do
-            if FPSBoostOn then
+            if Config.FPSBoost then
                 Lighting.GlobalShadows = false
                 Lighting.FogEnd = 0
                 for _, v in ipairs(Workspace:GetDescendants()) do
@@ -268,10 +391,10 @@ function LoadRayfield()
         end
     end)
 
-    -- ========== FULLBRIGHT ==========
+    -- ===== FULLBRIGHT =====
     task.spawn(function()
         while task.wait(1) do
-            if FullbrightOn then
+            if Config.Fullbright then
                 Lighting.Brightness = 2
             else
                 Lighting.Brightness = 1
@@ -279,7 +402,7 @@ function LoadRayfield()
         end
     end)
 
-    -- ========== ANTI-AFK ==========
+    -- ===== ANTI-AFK =====
     task.spawn(function()
         while task.wait(60) do
             pcall(function()
@@ -291,7 +414,7 @@ function LoadRayfield()
         end
     end)
 
-    -- ========== UI ==========
+    -- ===== UI (RAYFIELD) =====
     local Window = Rayfield:CreateWindow({
         name = "Knife Duels PRO",
         subtitle = "Plalette Scripts | Silent Aim",
@@ -299,22 +422,106 @@ function LoadRayfield()
 
     local CombatTab = Window:CreateTab({ name = "Combat", icon = "crosshair" })
     local VisualTab = Window:CreateTab({ name = "Visuals", icon = "eye" })
+    local MoveTab = Window:CreateTab({ name = "Movement", icon = "footprints" })
     local UtilityTab = Window:CreateTab({ name = "Utility", icon = "gear" })
 
     CombatTab:CreateSection("Silent Aim")
-    CombatTab:CreateToggle({ name = "Silent Aim (100% Treffer)", currentValue = false, callback = function(v) SilentAimEnabled = v end })
-    CombatTab:CreateSlider({ name = "FOV Radius", range = {30, 300}, increment = 5, currentValue = 120, callback = function(v) FOVRadius = v end })
-    CombatTab:CreateDropdown({ name = "Ziel-Hitbox", options = {"Head", "HumanoidRootPart", "Torso"}, currentOption = "Head", callback = function(v) HitPart = v end })
+    CombatTab:CreateToggle({
+        name = "Silent Aim (100% Hit)",
+        currentValue = true,
+        callback = function(v) Config.Enabled = v end
+    })
+    CombatTab:CreateSlider({
+        name = "FOV Radius",
+        range = {30, 600},
+        increment = 10,
+        currentValue = 450,
+        callback = function(v) Config.FOV = v end
+    })
+    CombatTab:CreateDropdown({
+        name = "Target Hitbox",
+        options = {"Head", "HumanoidRootPart", "Torso"},
+        currentOption = "Head",
+        callback = function(v) Config.HitPart = v end
+    })
 
-    VisualTab:CreateSection("FOV")
-    VisualTab:CreateToggle({ name = "FOV Circle anzeigen", currentValue = false, callback = function(v) end })
-    VisualTab:CreateSection("ESP")
-    VisualTab:CreateToggle({ name = "ESP (Box + Name)", currentValue = false, callback = function(v) ESPOn = v end })
+    CombatTab:CreateSection("1v1")
+    CombatTab:CreateButton({
+        name = "📨 Request All (1v1)",
+        callback = function()
+            local count = RequestAll()
+            if count > 0 then
+                Window:Notify({ title = "1v1", content = "Sent to " .. count .. " players!" })
+            else
+                Window:Notify({ title = "1v1", content = "No RemoteEvent – tried /duelall" })
+            end
+        end
+    })
+
+    VisualTab:CreateSection("Visuals")
+    VisualTab:CreateToggle({
+        name = "Chams (Green = free throw)",
+        currentValue = false,
+        callback = function(v) Config.Chams = v end
+    })
+    VisualTab:CreateToggle({
+        name = "Tracers (smooth)",
+        currentValue = false,
+        callback = function(v) Config.Tracers = v end
+    })
+
+    MoveTab:CreateSection("Speed")
+    MoveTab:CreateToggle({
+        name = "Speed Hack",
+        currentValue = false,
+        callback = function(v)
+            Config.Speed = v
+            ApplySpeedJump()
+        end
+    })
+    MoveTab:CreateSlider({
+        name = "Walk Speed",
+        range = {16, 100},
+        increment = 2,
+        currentValue = 32,
+        callback = function(v)
+            Config.SpeedVal = v
+            ApplySpeedJump()
+        end
+    })
+
+    MoveTab:CreateSection("Jump Power")
+    MoveTab:CreateToggle({
+        name = "Jump Power Hack",
+        currentValue = false,
+        callback = function(v)
+            Config.Jump = v
+            ApplySpeedJump()
+        end
+    })
+    MoveTab:CreateSlider({
+        name = "Jump Power",
+        range = {50, 300},
+        increment = 10,
+        currentValue = 60,
+        callback = function(v)
+            Config.JumpVal = v
+            ApplySpeedJump()
+        end
+    })
 
     UtilityTab:CreateSection("Performance")
-    UtilityTab:CreateToggle({ name = "FPS Boost", currentValue = false, callback = function(v) FPSBoostOn = v end })
-    UtilityTab:CreateToggle({ name = "Fullbright", currentValue = false, callback = function(v) FullbrightOn = v end })
-    UtilityTab:CreateLabel({ name = "💡 Silent Aim nur beim Wurf aktiv – kein Lag" })
+    UtilityTab:CreateToggle({
+        name = "FPS Boost",
+        currentValue = false,
+        callback = function(v) Config.FPSBoost = v end
+    })
+    UtilityTab:CreateToggle({
+        name = "Fullbright",
+        currentValue = false,
+        callback = function(v) Config.Fullbright = v end
+    })
+    UtilityTab:CreateLabel({ name = "💡 Silent Aim only active on throw – no lag" })
 
-    Window:Notify({ title = "Plalette Scripts", content = "Knife Duels PRO geladen!" })
+    Window:Notify({ title = "Plalette Scripts", content = "Knife Duels PRO loaded!" })
 end
